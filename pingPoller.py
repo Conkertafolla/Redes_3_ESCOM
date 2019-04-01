@@ -52,13 +52,18 @@ def _send_fcm_message(fcm_message):
     print(resp.text)
 
 def _build_common_message(ip):
-  
+  date_ping=datetime.now()
   return {
     'message': {
       'topic': 'news',
       'notification': {
         'title': 'Un dispositivo presenta falla',
         'body': 'La ip '+ ip+' no respondio al ping'
+      },
+      'data':{
+          'ip': ip,
+          'date': date_ping.strftime("%m/%d/%Y, %H:%M:%S ")
+           
       }
     }
   }
@@ -81,6 +86,7 @@ message["Subject"] = subject
 time_log ="PingPoller"+datetime.now().strftime("%m_%d_%Y_%H_%M_%S")+ ".txt"
 log_file=open(time_log,'w')
 no_error = True
+
 
 with open('ipTest.txt','r') as ips:
     for ip in ips:
@@ -145,4 +151,4 @@ if not no_error:
         server.sendmail(sender_email, receiver_email, text)
 else:
     #nada
-    
+    1+3
