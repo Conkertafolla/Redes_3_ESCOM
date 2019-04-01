@@ -2,25 +2,147 @@ import subprocess
 import sys
 from datetime import datetime
 
-time_log ="PingPoller"+datetime.now().strftime("%m_%d_%Y_%H_%M_%S")
+# para enviar el correo
+ 
+import email, smtplib, ssl
+
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+#Notificaciones usando firebase Cloud Messaging
+import argparse
+import json
+import requests
+
+from oauth2client.service_account import ServiceAccountCredentials
+
+#Variables del servicio FCM
+PROJECT_ID = 'network-6e3b0'
+BASE_URL = 'https://fcm.googleapis.com'
+FCM_ENDPOINT = 'v1/projects/' + PROJECT_ID + '/messages:send'
+FCM_URL = BASE_URL + '/' + FCM_ENDPOINT
+SCOPES = ['https://www.googleapis.com/auth/firebase.messaging']
+
+def _get_access_token():
+  """Retrieve a valid access token that can be used to authorize requests.
+  :return: Access token.
+  """
+  credentials = ServiceAccountCredentials.from_json_keyfile_name(
+      'service-account.json', SCOPES)
+  access_token_info = credentials.get_access_token()
+  return access_token_info.access_token
+# [END retrieve_access_token]
+
+def _send_fcm_message(fcm_message):
+  # [START use_access_token]
+  headers = {
+    'Authorization': 'Bearer ' + _get_access_token(),
+    'Content-Type': 'application/json; UTF-8',
+  }
+  # [END use_access_token]
+  resp = requests.post(FCM_URL, data=json.dumps(fcm_message), headers=headers)
+
+  if resp.status_code == 200:
+    print('Message sent to Firebase for delivery, response:')
+    print(resp.text)
+  else:
+    print('Unable to send message to Firebase')
+    print(resp.text)
+
+def _build_common_message(ip):
+  
+  return {
+    'message': {
+      'topic': 'news',
+      'notification': {
+        'title': 'Un dispositivo presenta falla',
+        'body': 'La ip '+ ip+' no respondio al ping'
+      }
+    }
+  }
+
+subject = "Hubo errores en dispositivos"
+body = "Se adjunta el archivo con el reporte de errores"
+sender_email = "equipo.redes3.escom@gmail.com"
+receiver_email = "larryjaguey@gmail.com"
+password = "abcdef1357"
+
+# Create a multipart message and set headers
+message = MIMEMultipart()
+message["From"] = sender_email
+message["To"] = receiver_email
+message["Subject"] = subject
+#message["Bcc"] = receiver_email  # Recommended for mass emails
+
+
+
+time_log ="PingPoller"+datetime.now().strftime("%m_%d_%Y_%H_%M_%S")+ ".txt"
 log_file=open(time_log,'w')
+no_error = True
 
 with open('ipTest.txt','r') as ips:
     for ip in ips:
         ip=ip.strip()
-        res = subprocess.call(['ping','-c','3',ip])
+        res = subprocess.call(['ping','-c','6',ip])
         date_ping=datetime.now()
         print(res)
         if res == 0:
-            print("La direccion "+ip+" respondio correctamente a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n"))
-            log_file.write("La direccion "+ip+" respondio correctamente a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n"))
-        elif res == 2:
-            print("La direccion "+ip+" no respondio correctamente a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n"))
-            log_file.write("La direccion "+ip+" no respondio correctamente a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n"))
+            print("La direccion "+ip+" respondio correctamente en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n"))
+            
         else:
-            print("Ping a la direccion "+ip+" fallo a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n "))
-            log_file.write("Ping a la direccion "+ip+" fallo a la fecha "+date_ping.strftime("%m/%d/%Y, %H:%M:%S \n"))
+            no_error = False
+            log_file.write("La direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n"))
+            log_file.write("Después de 6 intentos:\n")
+            res = subprocess.call(['ping','-c','4',ip])
+            if res == 0:
+                log_file.write("\tRespondió correctamente.\n")
+            else:
+                log_file.write("\tLa direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n"))
+                log_file.write("\tDespués de 4 intentos:\n")
+                res = subprocess.call(['ping','-c','2',ip])
+                if res == 0:
+                    log_file.write("\t\tRespondió correctamente\n")
+                else:
+                    log_file.write("\t\tFalló finalmente después de 10 intentos.\n")
+                    #Envia notificacion
+                    common_message = _build_common_message(ip)
+                    print('FCM request body for message using common notification object:')
+                    print(json.dumps(common_message, indent=2))
+                    _send_fcm_message(common_message)
 log_file.close()
 
+if not no_error:
+    #enviar correo
+    message.attach(MIMEText(body, "plain"))
+    filename = time_log  # In same directory as script
 
+    # Open file in binary mode
+    with open(filename, "rb") as attachment:
+        # Add file as application/octet-stream
+        # Email client can usually download this automatically as attachment
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attachment.read())
 
+    # Encode file in ASCII characters to send by email    
+    encoders.encode_base64(part)
+
+    # Add header as key/value pair to attachment part
+    part.add_header(
+        "Content-Disposition",
+        "attachment; filename=" +filename,
+    )
+
+    # Add attachment to message and convert message to string
+    message.attach(part)
+    text = message.as_string()
+
+    # Log in to server using secure context and send email
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, text)
+else:
+    #nada
+    
