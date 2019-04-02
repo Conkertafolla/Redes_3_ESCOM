@@ -1,3 +1,4 @@
+# coding=utf-8
 import subprocess
 import sys
 from datetime import datetime
@@ -71,7 +72,7 @@ def _build_common_message(ip):
 subject = "Hubo errores en dispositivos"
 body = "Se adjunta el archivo con el reporte de errores"
 sender_email = "equipo.redes3.escom@gmail.com"
-receiver_email = "larryjaguey@gmail.com"
+receiver_email = "javiervbk@gmail.com"
 password = "abcdef1357"
 
 # Create a multipart message and set headers
@@ -145,10 +146,11 @@ if not no_error:
     text = message.as_string()
 
     # Log in to server using secure context and send email
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, text)
+    server = smtplib.SMTP('smtp.gmail.com: 587')
+    server.starttls()
+    server.login(sender_email, password)
+    server.sendmail(sender_email, receiver_email, text)
+    server.quit()
 else:
     #nada
     1+3
