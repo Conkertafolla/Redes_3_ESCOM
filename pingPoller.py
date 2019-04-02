@@ -19,6 +19,9 @@ import requests
 
 from oauth2client.service_account import ServiceAccountCredentials
 
+#SMS
+from twilio.rest import Client
+
 #Variables del servicio FCM
 PROJECT_ID = 'network-6e3b0'
 BASE_URL = 'https://fcm.googleapis.com'
@@ -88,7 +91,7 @@ time_log ="PingPoller"+datetime.now().strftime("%m_%d_%Y_%H_%M_%S")+ ".txt"
 log_file=open(time_log,'w')
 no_error = True
 
-
+mensajesms=''
 with open('ipTest.txt','r') as ips:
     for ip in ips:
         ip=ip.strip()
@@ -101,6 +104,7 @@ with open('ipTest.txt','r') as ips:
         else:
             no_error = False
             log_file.write("La direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n"))
+            mensajesms="La direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n")
             log_file.write("Después de 6 intentos:\n")
             res = subprocess.call(['ping','-c','4',ip])
             if res == 0:
@@ -113,6 +117,7 @@ with open('ipTest.txt','r') as ips:
                     log_file.write("\t\tRespondió correctamente\n")
                 else:
                     log_file.write("\t\tFalló finalmente después de 10 intentos.\n")
+                    mensajesms=mensajesms+"\t\tFalló finalmente después de 10 intentos.\n"
                     #Envia notificacion
                     common_message = _build_common_message(ip)
                     print('FCM request body for message using common notification object:')
@@ -151,6 +156,18 @@ if not no_error:
     server.login(sender_email, password)
     server.sendmail(sender_email, receiver_email, text)
     server.quit()
+
+    account_sid = "AC8e9b6afd18749b12132ab968ef48e0ff"
+    auth_token  = "8fa253e1e1efc70fe9d092bfbb19261b"
+
+    client = Client(account_sid, auth_token)
+
+    messagesms = client.messages.create(
+      to="+525541854182", 
+      from_="+12028462580",
+      body=mensajesms)
+    print(messagesms.sid)
+    print ("SMS enviada")
 else:
     #nada
     1+3
