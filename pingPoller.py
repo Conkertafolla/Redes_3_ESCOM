@@ -1,3 +1,4 @@
+# coding=utf-8
 import subprocess
 import sys
 from datetime import datetime
@@ -17,6 +18,9 @@ import json
 import requests
 
 from oauth2client.service_account import ServiceAccountCredentials
+
+#SMS
+from twilio.rest import Client
 
 #Variables del servicio FCM
 PROJECT_ID = 'network-6e3b0'
@@ -71,7 +75,7 @@ def _build_common_message(ip):
 subject = "Hubo errores en dispositivos"
 body = "Se adjunta el archivo con el reporte de errores"
 sender_email = "equipo.redes3.escom@gmail.com"
-receiver_email = "larryjaguey@gmail.com"
+receiver_email = "javiervbk@gmail.com"
 password = "abcdef1357"
 
 # Create a multipart message and set headers
@@ -87,7 +91,7 @@ time_log ="PingPoller"+datetime.now().strftime("%m_%d_%Y_%H_%M_%S")+ ".txt"
 log_file=open(time_log,'w')
 no_error = True
 
-
+mensajesms=''
 with open('ipTest.txt','r') as ips:
     for ip in ips:
         ip=ip.strip()
@@ -99,8 +103,9 @@ with open('ipTest.txt','r') as ips:
             
         else:
             no_error = False
-            log_file.write("La direccion "+ip+" no respondio en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S ")+"\n")
-            log_file.write("Despues de 6 intentos: \n")
+            log_file.write("La direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n"))
+            mensajesms="La direccion "+ip+" no respondió en: "+date_ping.strftime("%m/%d/%Y, %H:%M:%S\n")
+            log_file.write("Después de 6 intentos:\n")
             res = subprocess.call(['ping','-c','4',ip])
             if res == 0:
                 log_file.write("\tRespondio correctamente.\n")
@@ -111,7 +116,8 @@ with open('ipTest.txt','r') as ips:
                 if res == 0:
                     log_file.write("\t\tRespondio correctamente\n")
                 else:
-                    log_file.write("\t\tFallo finalmente despues de 10 intentos.\n")
+                    log_file.write("\t\tFalló finalmente después de 10 intentos.\n")
+                    mensajesms=mensajesms+"\t\tFalló finalmente después de 10 intentos.\n"
                     #Envia notificacion
                     common_message = _build_common_message(ip)
                     print('FCM request body for message using common notification object:')
@@ -147,10 +153,22 @@ if not no_error:
     # Log in to server using secure context and send email
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.ehlo()
+        server.login(sender_email, password)
         server.login(sender_email, password)
         server.sendmail(sender_email, receiver_email, text)
-        server.close()
+ 
+
+    account_sid = "AC8e9b6afd18749b12132ab968ef48e0ff"
+    auth_token  = "8fa253e1e1efc70fe9d092bfbb19261b"
+
+    client = Client(account_sid, auth_token)
+
+    messagesms = client.messages.create(
+      to="+525541854182", 
+      from_="+12028462580",
+      body=mensajesms)
+    print(messagesms.sid)
+    print ("SMS enviada")
 else:
     #nada
     1+3
